@@ -1,6 +1,8 @@
 package model;
 
 
+import system.SystemService;
+
 import javax.validation.constraints.Size;
 import java.util.ArrayList;
 import java.util.List;
@@ -44,12 +46,10 @@ public class Board {
         System.out.println("Initializing board with length " + gameBoard.length);
 
         // add boxes
-        // int maxMines = (gameBoard.length * 2) % 3;
 
         for (int i = 0; i < gameBoard.length; i++) {
             for (int j = 0; j < gameBoard.length; j++) {
 
-              //  System.out.println("position: " + i + j);
                 Box box = new Box();
 
                 //count number of mines on board
@@ -63,8 +63,6 @@ public class Board {
                 box.setPosj(j);
                 gameBoard[i][j] = box;
 
-               // System.out.println("Position " + i + " " + j + " with mine; " + (box.getMine().toString()));
-                System.out.println("");
             }
         }
 
@@ -186,13 +184,13 @@ public class Board {
     }
 
     /**
-     * Clicks on selected position
+     * left click on selected position
+     * @param userName
      * @param pos_i
      * @param pos_j
-     *
-     * returns true if a mine was at that location
+ *
      */
-    public boolean click(int pos_i, int pos_j) {
+    public boolean leftclick(String userName, int pos_i, int pos_j) {
 
         ((Box)gameBoard[pos_i][pos_j]).setHidden(Boolean.FALSE);
         if (  ((Box)gameBoard[pos_i][pos_j]).getMine() ) {
@@ -201,6 +199,26 @@ public class Board {
         }
         unHiddenBoxes(pos_i,pos_j);
         return Boolean.FALSE;
+    }
+
+    /**
+     * left click on selected position to put flag
+     * @param pos_i
+     * @param pos_j
+     *
+     */
+    public void rightclick(int pos_i, int pos_j) {
+
+        BoxStatus actualStatus = ((Box)gameBoard[pos_i][pos_j]).getStatus();
+
+        System.out.println("actualstatus");
+        System.out.println(actualStatus);
+
+        ((Box)gameBoard[pos_i][pos_j]).setStatus(actualStatus.getNext());
+
+        System.out.println("newstatus");
+        System.out.println(((Box)gameBoard[pos_i][pos_j]).getStatus());
+
     }
 
     /**
@@ -236,7 +254,7 @@ public class Board {
 
 
     /**
-     * Checks if the user win
+     * Checks if the user won
      * @return
      */
     public Boolean checkWin() {

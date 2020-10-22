@@ -6,13 +6,11 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import model.Board;
 import model.Box;
+import model.BoxStatus;
 import model.UserDB;
 import org.json.simple.JSONArray;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 
 public class SystemService {
@@ -20,10 +18,23 @@ public class SystemService {
     final static FireBaseService fireBaseService = new FireBaseService();
 
     Board dbBoard = null;
-    String UsersDB = null;
+    Map<String, UserDB> usersDB = null;
+    String JsonUsersDB = null;
+    Gson gson = new Gson();
+    Boolean reading = Boolean.FALSE;
 
-    public Board newGame(String userName){
+    public Board newGame(String userName) throws InterruptedException {
+        reading = Boolean.TRUE;
+        readData();
+
+        while (reading) {
+            System.out.println("loading this.JsonDBInfo for new game, please wait");
+            TimeUnit.SECONDS.sleep(2);
+        }
+
         Board board = new Board(3);
+        dbBoard = board;
+        saveGame(userName,board);
         return board;
     }
 
@@ -39,72 +50,75 @@ public class SystemService {
 
         UserDB userDB = new UserDB();
         userDB.setUserName(userName);
-        List <Box> boxes = new ArrayList<Box>();
-        for (int i = 0; i < board.getGameBoard().length; i++) {
-            for (int j = 0; j <  board.getGameBoard().length; j++) {
-                Box box = (Box) board.getGameBoard()[i][j];
-                boxes.add(box);
-            }
+        userDB.setBoxes(board.getGameBoardAsList());
+
+        if (this.usersDB.containsKey(userName)) {
+            this.usersDB.replace(userName,userDB);
+        }else{
+            this.usersDB.put(userName,userDB);
         }
 
-        userDB.setBoxes(boxes);
-        Gson gson = new Gson();
-        String json = gson.toJson(userDB);
-        usersRef.setValueAsync(json);
+        usersRef.setValueAsync(this.usersDB);
     }
 
     /**
      * Loads game from firebase
      */
-    public void loadGame(String userName) throws InterruptedException {
+    public Board loadGame(String userName) throws InterruptedException {
         System.out.println("Loading .........");
         readData();
-        UsersDB = null;
+        JsonUsersDB = null;
         updateBoard(userName);
+        return this.dbBoard;
+    }
+
+    private Box toBox(Map map) {
+        Box box = new Box();
+        box.setMine((Boolean) map.get("mine"));
+        box.setPosi(((Long)map.get("posi")).intValue() );
+        box.setPosj(  ((Long)map.get("posj")).intValue() );
+        box.setHidden((Boolean) map.get("hidden"));
+        box.setMinesAround(((Long) map.get("minesAround")).intValue());
+
+        BoxStatus boxStatus;
+
+        if ( ((String) map.get("status")).equalsIgnoreCase(BoxStatus.NONE.toString())) {
+            boxStatus = BoxStatus.NONE;
+        }else{
+            boxStatus= BoxStatus.FLAG;
+        }
+
+        box.setStatus(boxStatus );
+        return box;
     }
 
 
     private void updateBoard(String userName) throws InterruptedException {
         System.out.println("updateBoard ............................");
-        //todo check user!
-        Board board = new Board();
+        Board board = new Board(3);
         GsonBuilder gsonBuilder = new GsonBuilder();
         Gson gson = gsonBuilder.create();
         List<UserDB> users;
-        while (this.UsersDB == null) {
-            System.out.println("loading this.JsonDBInfo, please wait");
-         //   System.out.println("this.JsonDBInfo is " + this.UsersDB);
+
+        this.reading = Boolean.TRUE;
+        while (reading) {
+            System.out.println("loading data ...   please wait");
             TimeUnit.SECONDS.sleep(2);
         }
 
-        users = Arrays.asList(gson.fromJson( this.UsersDB, UserDB.class));
-        System.out.println("users ");
-        int  size = 0;
-        size = (users.get(0).getBoxes().size())/3;
-        System.out.println("size "+ size);
-        board.setGameBoard(new Object[size][size]);
 
+        if (this.usersDB.containsKey(userName)) {
+            System.out.println("user data found , loading game");
+            List<Map> boxList = new ArrayList<Map>();
+            Map userMap = (Map) this.usersDB.get(userName);
 
+            boxList = (ArrayList<Map>) userMap.get("boxes");
 
-        UserDB  user = users.stream().filter(userDB -> userDB.getUserName().equals(userName)).findFirst().orElse(null);
+            boxList.forEach((box) ->toBox(box));
 
-        if (user != null ) {
-            System.out.println("User found!, loading latest game");
-              user.getBoxes()
-                      .forEach(box ->
-                        board.getGameBoard()[box.getPosi()][box.getPosj()] = box);
-        }else{
-            System.out.println("User not found, initializing game");
-            dbBoard = new Board(3);
         }
 
-
-     //   users.forEach( user -> user.getBoxes().stream().
-       //       forEach(box ->
-         //       board.getGameBoard()[box.getPosi()][box.getPosj()] = box));
-
         dbBoard = board;
-
     }
 
     private void readData( ){
@@ -116,11 +130,13 @@ public class SystemService {
             @Override
             public void onDataChange(DataSnapshot dataSnapshot) {
 
+                reading = Boolean.TRUE;
 
-                String JsonUsers = dataSnapshot.getValue(String.class);
-                System.out.println(JsonUsers);
-                setUsersDB(JsonUsers);
-
+                Map<String, UserDB> map  = (Map) dataSnapshot.getValue();
+                System.out.println("map");
+                System.out.println(map);
+                setUsersDB(map);
+                reading = Boolean.FALSE;
             }
 
             @Override
@@ -130,24 +146,6 @@ public class SystemService {
         });
     }
 
-    private void updateBoard(Map<String, JSONArray> dBboxes) {
-        System.out.println("boxes update inside");
-        JSONArray boxesList = dBboxes.get("peplo");
-
-        System.out.println("updateBoard ............................");
-        //todo check user!
-        Board board = new Board();
-        GsonBuilder gsonBuilder = new GsonBuilder();
-        Gson gson = gsonBuilder.create();
-        List<Box> boxes = new ArrayList<Box>();
-        boxes = Arrays.asList(gson.fromJson(String.valueOf(boxesList), Box[].class));
-        boxes.forEach( box -> board.getGameBoard()[box.getPosi()][box.getPosj()] = box);
-
-        dbBoard = board;
-
-        System.out.println("boxes for each ending");
-    };
-
     public Board getDbBoard() {
         return dbBoard;
     }
@@ -156,11 +154,20 @@ public class SystemService {
         this.dbBoard = dbBoard;
     }
 
-    public String getUsersDB() {
-        return UsersDB;
+
+    public String getJsonUsersDB() {
+        return JsonUsersDB;
     }
 
-    public void setUsersDB(String usersDB) {
-        UsersDB = usersDB;
+    public void setJsonUsersDB(String jsonUsersDB) {
+        JsonUsersDB = jsonUsersDB;
+    }
+
+    public Map<String, UserDB> getUsersDB() {
+        return usersDB;
+    }
+
+    public void setUsersDB(Map<String, UserDB> usersDB) {
+        this.usersDB = usersDB;
     }
 }
