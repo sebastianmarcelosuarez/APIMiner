@@ -1,13 +1,22 @@
 import com.google.gson.Gson;
-import model.APIResponse;
+import model.Board;
+import model.Box;
+import model.api.APIRequest;
+import model.api.APIResponse;
+import model.api.Status;
+import system.SystemService;
 
 import javax.ws.rs.*;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Scanner;
 
 @Path("/miner")
 public class APIMiner {
+
+    SystemService  SystemService = new SystemService();
 
     @POST
     @Path("/newgame")
@@ -16,28 +25,28 @@ public class APIMiner {
     public String newGame(InputStream inputStream) {
 
         Gson gson = new Gson();
-
-        System.out.println("json request!!");
-        System.out.println(inputStream.toString());
-
-       // InputStream inputStream = new ByteArrayInputStream(inputStream.getBytes());
-
         String text = null;
         try (Scanner scanner = new Scanner(inputStream, StandardCharsets.UTF_8.name())) {
             text = scanner.useDelimiter("\\A").next();
         }
+        APIRequest apiRequest = gson.fromJson(text,APIRequest.class);
 
-        System.out.println("text");
-        System.out.println(text);
+        Board board = SystemService.newGame(apiRequest.getUserName());
 
-
-        String request = gson.toJson(text);
         APIResponse apiResponse = new APIResponse();
+        if (board == null) {
+            apiResponse.setStatus(Status.ERROR.toString());
+        }else{
+            apiResponse.setStatus(Status.OK.toString());
+            apiResponse.setBoxList(board.getGameBoardAsList());
+            apiResponse.setLose(Boolean.FALSE);
+            apiResponse.setWin(Boolean.FALSE);
+        }
 
-        apiResponse.setStatus("OK");
-        apiResponse.setResult("newgame");
+        apiResponse.setUserName(apiRequest.getUserName());
 
         String json = gson.toJson(apiResponse);
+
         return json;
     }
 
@@ -50,7 +59,6 @@ public class APIMiner {
         APIResponse apiResponse = new APIResponse();
 
         apiResponse.setStatus("OK");
-        apiResponse.setResult("load");
 
         String json = gson.toJson(apiResponse);
         return json;
@@ -62,10 +70,9 @@ public class APIMiner {
     public String rightClick() {
         Gson gson = new Gson();
 
-        APIResponse apiResponse = new APIResponse();
+       APIResponse apiResponse = new APIResponse();
 
         apiResponse.setStatus("OK");
-        apiResponse.setResult("rightclick");
 
         String json = gson.toJson(apiResponse);
         return json;
@@ -80,7 +87,6 @@ public class APIMiner {
         APIResponse apiResponse = new APIResponse();
 
         apiResponse.setStatus("OK");
-        apiResponse.setResult("leftclick");
 
         String json = gson.toJson(apiResponse);
         return json;
